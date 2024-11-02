@@ -17,6 +17,8 @@ services:
       - BACKEND_PORT=${BACKEND_PORT}
       - REDIS_HOST=redis
       - REDIS_PORT=${REDIS_PORT}
+      - CHROME_PATH=/usr/bin/google-chrome
+      - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
     depends_on:
       mysql:
         condition: service_healthy

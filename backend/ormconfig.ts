@@ -16,9 +16,6 @@ const commonTypeOrmConfig: TypeOrmModuleOptions & DataSourceOptions = {
   entities: [User],
   migrations: [join(__dirname, "src/migrations/*.ts")],
   charset: "utf8mb4",
-  extra: {
-    collation: "utf8mb4_unicode_ci",
-  },
 };
 
 export const typeOrmConfig = {
