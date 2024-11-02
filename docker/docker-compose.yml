@@ -1,0 +1,166 @@
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/dockerfiles/dockerfile.backend
+    container_name: ${DOMAIN_NAME}_backend
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_DOCKER_PORT}"
+    environment:
+      - DB_HOST=mysql # mysql 컨테이너 이름
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - IS_DEV=${IS_DEV}
+      - JWT_SECRET=${JWT_SECRET}
+      - BACKEND_PORT=${BACKEND_PORT}
+      - REDIS_HOST=redis
+      - REDIS_PORT=${REDIS_PORT}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mynetwork
+    restart: always
+
+  mysql:
+    build:
+      context: ./ 
+      dockerfile: ./dockerfiles/dockerfile.mysql
+    container_name: ${DOMAIN_NAME}_mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    ports:
+      - "${DB_PORT}:${DB_DOCKER_PORT}"
+    volumes:
+      - db_techdocs_hub_data:/var/lib/mysql
+      - ./mysql/my.cnf:/etc/mysql/my.cnf
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "mysqladmin ping -h mysql -u root -p${MYSQL_ROOT_PASSWORD} || exit 1" ] # localhost 대신 mysql 사용
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - mynetwork
+    command: --default-authentication-plugin=mysql_native_password
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
+    container_name: ${DOMAIN_NAME}_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_DOCKER_PORT}"
+    networks:
+      - mynetwork
+    volumes:
+      - es_techdocs_hub_data:/usr/share/elasticsearch/data
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.9.0
+    container_name: ${DOMAIN_NAME}_logstash
+    ports:
+      - "${LOGSTASH_PORT}:${LOGSTASH_DOCKER_PORT}"
+    volumes:
+      - ./elk/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./elk/pipelines.yml:/usr/share/logstash/config/pipelines.yml
+    networks:
+      - mynetwork
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.9.0
+    container_name: ${DOMAIN_NAME}_kibana
+    ports:
+      - "${KIBANA_PORT}:${KIBANA_DOCKER_PORT}"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9201
+      - xpack.security.enabled=false
+    networks:
+      - mynetwork
+    depends_on:
+      - elasticsearch
+
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: ${DOMAIN_NAME}_jenkins
+    ports:
+      - "${JENKINS_PORT}:${JENKINS_DOCKER_PORT}" # Jenkins UI 포트
+      - "50000:50000" # Jenkins 에이전트 통신 포트
+    volumes:
+      - ./jenkins_techdocs_hub_home:/var/jenkins_home 
+    networks:
+      - mynetwork
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    restart: always
+    depends_on:
+      - mysql 
+      - elasticsearch
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: ${DOMAIN_NAME}_zookeeper
+    ports:
+      - "${ZOOKEEPER_PORT}:${ZOOKEEPER_DOCKER_PORT}"
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=${ZOOKEEPER_CLIENT_PORT}  # 클라이언트 포트 설정
+    networks:
+      - mynetwork
+    restart: always
+    
+
+  kafka:
+    image: wurstmeister/kafka:latest  
+    container_name: ${DOMAIN_NAME}_kafka
+    ports:
+      - "${KAFKA_PORT}:${KAFKA_DOCKER_PORT}"
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:${ZOOKEEPER_CLIENT_PORT}
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092 
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT
+      - KAFKA_LOG_RETENTION_HOURS=168
+      - KAFKA_BROKER_ID=1
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - zookeeper
+    networks:
+      - mynetwork
+    restart: always
+
+  redis:
+    image: redis:latest
+    container_name: ${DOMAIN_NAME}_redis
+    ports:
+      - "${REDIS_PORT}:${REDIS_DOCKER_PORT}"
+    networks:
+      - mynetwork
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    restart: always
+
+volumes:
+  db_techdocs_hub_data:
+  es_techdocs_hub_data:
+  jenkins_techdocs_hub_home:
+
+networks:
+  mynetwork:
+    driver: bridge
