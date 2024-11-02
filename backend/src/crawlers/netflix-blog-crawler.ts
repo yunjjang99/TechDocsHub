@@ -63,7 +63,7 @@ class NetflixBlogCrawler {
   public async openPage(): Promise<any> {
     const browser = await puppeteer.launch({
       headless: process.env.IS_DEV === "true" ? false : true,
-      executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome",
+      executablePath: process.env.CHROME_PATH || "/usr/bin/chromium",
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -123,7 +123,7 @@ class NetflixBlogCrawler {
   private async testExtractLinks(): Promise<void> {
     try {
       const htmlContent = await fs.readFile(
-        "/Users/mac/TechDocsHub/backend/mnt/netflex/html/2024-11-03.html",
+        path.join(__dirname, "../../../mnt/netflex/html/2024-11-03.html"),
         "utf-8"
       );
       const links = this.extractLinks(htmlContent);

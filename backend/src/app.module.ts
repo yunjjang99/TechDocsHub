@@ -18,7 +18,7 @@ import { LoggingInterceptor } from "./common/interceptor/logging.interceptor";
     }),
     TypeOrmModule.forRoot({
       ...typeOrmConfig,
-      synchronize: process.env.IS_DEV ? true : false,
+      synchronize: process.env.IS_DEV ? true : true,
     }),
     AuthModule,
     UserModule,

@@ -8,7 +8,7 @@ services:
       - "${BACKEND_PORT}:${BACKEND_DOCKER_PORT}"
     environment:
       - DB_HOST=mysql # mysql 컨테이너 이름
-      - DB_PORT=${DB_PORT}
+      - DB_PORT=${DB_DOCKER_PORT}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
@@ -17,7 +17,7 @@ services:
       - BACKEND_PORT=${BACKEND_PORT}
       - REDIS_HOST=redis
       - REDIS_PORT=${REDIS_PORT}
-      - CHROME_PATH=/usr/bin/google-chrome
+      - CHROME_PATH=${CHROME_PATH}
       - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
     depends_on:
       mysql:
@@ -27,6 +27,8 @@ services:
     networks:
       - mynetwork
     restart: always
+    volumes:
+      - ../backend/mnt:/app/mnt 
 
   mysql:
     build:
@@ -34,10 +36,8 @@ services:
       dockerfile: ./dockerfiles/dockerfile.mysql
     container_name: ${DOMAIN_NAME}_mysql
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
       - MYSQL_DATABASE=${DB_NAME}
-      - MYSQL_USER=${DB_USER}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
     ports:
       - "${DB_PORT}:${DB_DOCKER_PORT}"
     volumes:
@@ -52,7 +52,6 @@ services:
       start_period: 40s
     networks:
       - mynetwork
-    command: --default-authentication-plugin=mysql_native_password
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0

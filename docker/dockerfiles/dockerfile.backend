@@ -1,14 +1,25 @@
 # Stage 1: Build the application
 FROM node:20.16.0 AS builder
 
-RUN apt-get update \
-    && apt-get install -y wget gnupg \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 \
-    --no-install-recommends \
+# 필수 패키지 설치 (apt 사용)
+RUN apt-get update && \
+    apt-get install -y \
+    chromium \
+    fonts-freefont-ttf \
+    libnss3 \
+    libfreetype6 \
+    libharfbuzz-bin \
+    fonts-noto-color-emoji \
+    libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
+
+# Puppeteer가 기본적으로 Chromium을 다운로드하지 않도록 설정합니다.
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+# Chromium 바이너리를 Puppeteer의 경로와 일치시키도록 심볼릭 링크 생성 (기존에 파일이 없을 때만 생성)
+RUN if [ ! -f /usr/bin/chromium ]; then \
+    ln -s /usr/bin/chromium /usr/bin/chromium; \
+    fi
 
 # 작업 디렉토리 설정
 WORKDIR /app
@@ -21,6 +32,12 @@ RUN npm install
 
 # 소스 코드 복사
 COPY . .
+
+# Chromium이 설치되었는지 확인
+RUN if [ ! -f /usr/bin/chromium ]; then \
+    echo "Error: Chromium이 /usr/bin/chromium 경로에 설치되지 않았습니다."; \
+    exit 1; \
+    fi
 
 # NestJS 빌드
 RUN npm run build
@@ -40,6 +57,9 @@ COPY --from=builder /app/package*.json ./
 
 # 프로덕션 의존성 설치 (devDependencies 제외)
 RUN npm install --omit=dev
+
+RUN apt-get update && apt-get install -y chromium && chromium --version
+
 
 # 포트 설정
 EXPOSE 5121
