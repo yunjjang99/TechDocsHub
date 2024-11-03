@@ -27,7 +27,7 @@ async function bootstrap() {
   // 1초 후에 크롤러 실행
   setTimeout(async () => {
     const crawler = new NetflixBlogCrawler();
-    await crawler.openPage();
+    await crawler.netflixCrawl();
   }, 1000);
 }
 

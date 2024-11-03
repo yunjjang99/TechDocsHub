@@ -5,48 +5,67 @@ import * as fs from "fs-extra";
 import * as path from "path";
 import puppeteer from "puppeteer";
 
+interface CrawlerConfig {
+  baseUrl: string;
+  outputPostsDir: string;
+}
+
 class NetflixBlogCrawler {
-  private readonly baseUrl = "https://netflixtechblog.com";
-  private readonly outputDir = "/mnt/netflix";
+  private readonly config: CrawlerConfig = {
+    baseUrl: "https://netflixtechblog.com",
+    outputPostsDir: path.join(__dirname, "../../../mnt/netflix/posts"), // ../../../ 경로로 변경
+  };
   private readonly turndown: TurndownService;
   private readonly axiosInstance;
 
   constructor() {
-    this.turndown = new TurndownService({
+    this.turndown = this.initializeTurndown();
+    this.axiosInstance = this.initializeAxios();
+  }
+
+  private initializeTurndown(): TurndownService {
+    const turndown = new TurndownService({
       headingStyle: "atx",
       codeBlockStyle: "fenced",
     });
 
-    // 이미지 처리를 위한 규칙 추가
-    this.turndown.addRule("images", {
+    turndown.addRule("images", {
       filter: ["img"],
-      replacement: (content, node) => {
+      replacement: async (content, node) => {
         const img = node as HTMLImageElement;
-        const src = img.src;
-        const alt = img.alt || "";
-        const localPath = this.downloadAndSaveImage(src);
-        return `![${alt}](${localPath})`;
+        const localPath = await this.downloadAndSaveImage(
+          img.src,
+          this.config.outputPostsDir
+        );
+        return `![${img.alt || ""}](${localPath})`;
       },
     });
 
-    // axios 인스턴스 설정
-    this.axiosInstance = axios.create({
+    return turndown;
+  }
+
+  private initializeAxios() {
+    return axios.create({
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
       },
     });
   }
 
-  private async downloadAndSaveImage(imageUrl: string): Promise<string> {
+  private async downloadAndSaveImage(
+    imageUrl: string,
+    postDir: string
+  ): Promise<string> {
     try {
       const response = await axios.get(imageUrl, {
         responseType: "arraybuffer",
       });
       const imageName = path.basename(imageUrl);
-      const localPath = path.join(this.outputDir, "images", imageName);
+      const imagesDir = path.join(postDir, "images");
+      const localPath = path.join(imagesDir, imageName);
 
-      await fs.ensureDir(path.join(this.outputDir, "images"));
+      await fs.ensureDir(imagesDir);
       await fs.writeFile(localPath, response.data);
 
       return `./images/${imageName}`;
@@ -60,9 +79,30 @@ class NetflixBlogCrawler {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  public async openPage(): Promise<any> {
-    const browser = await puppeteer.launch({
-      headless: process.env.IS_DEV === "true" ? false : true,
+  public async netflixCrawl(): Promise<void> {
+    const browser = await this.initializeBrowser();
+
+    try {
+      const page = await browser.newPage();
+      await this.navigateToMainPage(page);
+
+      const links = await this.loadParsedLinkList();
+      console.log(links);
+      for (const link of links) {
+        await this.savePageHtml(link);
+        await this.sleep(2000);
+      }
+    } catch (error) {
+      console.error("❌ 크롤링 실패:", error);
+      throw error;
+    } finally {
+      await browser.close();
+    }
+  }
+
+  private async initializeBrowser() {
+    return puppeteer.launch({
+      headless: process.env.IS_DEV !== "true",
       executablePath: process.env.CHROME_PATH || "/usr/bin/chromium",
       args: [
         "--no-sandbox",
@@ -70,29 +110,17 @@ class NetflixBlogCrawler {
         "--disable-dev-shm-usage",
         "--disable-gpu",
         "--window-size=1920,1080",
-        "--start-maximized",
       ],
-      defaultViewport: {
-        width: 1920,
-        height: 1080,
-      },
+      defaultViewport: { width: 1920, height: 1080 },
     });
+  }
 
-    try {
-      const page = await browser.newPage();
-
-      console.log("Medium 로그인 페이지로 이동 중...");
-      await page.goto("https://netflixtechblog.com/", {
-        waitUntil: "networkidle0",
-        timeout: 60000,
-      });
-      this.testExtractLinks();
-    } catch (error) {
-      console.error("❌ Google 로그인 실패:", error.message);
-      throw error;
-    } finally {
-      await browser.close();
-    }
+  private async navigateToMainPage(page: any): Promise<void> {
+    console.log("넷플릭스 기술 블로그 페이지로 이동 중...");
+    await page.goto(this.config.baseUrl, {
+      waitUntil: "networkidle0",
+      timeout: 60000,
+    });
   }
 
   private extractLinks(html: string): string[] {
@@ -100,19 +128,16 @@ class NetflixBlogCrawler {
       const $ = cheerio.load(html);
       const links: string[] = [];
 
-      // 모든 a 태그를 찾아서 href 속성 추출
       $("a").each((_, element) => {
         const href = $(element).attr("href");
         if (href && !href.startsWith("#") && !href.startsWith("javascript:")) {
-          // 상대 경로인 경우 baseUrl과 결합
           const fullUrl = href.startsWith("http")
             ? href
-            : new URL(href, this.baseUrl).toString();
+            : new URL(href, this.config.baseUrl).toString();
           links.push(fullUrl);
         }
       });
 
-      // 중복 제거 후 반환
       return [...new Set(links)];
     } catch (error) {
       console.error("링크 추출 중 오류 발생:", error);
@@ -120,19 +145,91 @@ class NetflixBlogCrawler {
     }
   }
 
-  private async testExtractLinks(): Promise<void> {
+  private async savePageHtml(url: string): Promise<void> {
+    const browser = await this.initializeBrowser();
+
     try {
-      const htmlContent = await fs.readFile(
-        path.join(__dirname, "../../../mnt/netflex/html/2024-11-03.html"),
-        "utf-8"
-      );
-      const links = this.extractLinks(htmlContent);
-      console.log("추출된 링크들:", links);
-      console.log("총 링크 수:", links.length);
+      const page = await browser.newPage();
+      await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
+
+      const cleanedHtml = await page.evaluate(() => {
+        const startElement = document.querySelector(
+          '[data-testid="storyTitle"]'
+        );
+        const articleElement = startElement?.closest("article");
+
+        if (articleElement) {
+          articleElement.querySelectorAll("*").forEach((element) => {
+            element.removeAttribute("class");
+          });
+          return articleElement.outerHTML;
+        }
+        return null;
+      });
+
+      if (!cleanedHtml) {
+        console.log(`⚠️ 컨텐츠를 찾을 수 없음: ${url}`);
+        return;
+      }
+
+      const postName = url.split("/").pop() || "index";
+      const postDir = path.join(this.config.outputPostsDir, postName);
+      const filePath = path.join(postDir, "index.html");
+
+      await fs.ensureDir(postDir);
+      await fs.writeFile(filePath, cleanedHtml, "utf-8");
+
+      console.log(`✅ HTML 저장 완료: ${filePath}`);
     } catch (error) {
-      console.error("테스트 실행 중 오류 발생:", error);
+      console.error(`❌ HTML 저장 실패 (${url}):`, error);
+    } finally {
+      await browser.close();
     }
   }
+
+  private async loadParsedLinkList(): Promise<string[]> {
+    try {
+      const htmlContent = await fs.readFile(
+        path.join(__dirname, "../../../mnt/netflex/origin/2024-11-03.html"), // ../../../ 경로 설정
+        "utf-8"
+      );
+
+      return this.extractLinks(htmlContent)
+        .filter((link) => link.startsWith(this.config.baseUrl))
+        .filter(
+          (link) =>
+            link !== this.config.baseUrl && link !== `${this.config.baseUrl}/`
+        )
+        .map((link) => {
+          const index = link.indexOf("?source");
+          return index !== -1 ? link.substring(0, index) : link;
+        });
+    } catch (error) {
+      console.error("링크 목록 로드 실패:", error);
+      return [];
+    }
+  }
+}
+
+// data-testid가 storyTitle인 요소부��� article 끝까지 추출하고, 클래스 네임을 제거하는 함수
+function extractAndRemoveClassNames() {
+  // data-testid="storyTitle"로 시작하는 요소 선택
+  const startElement = document.querySelector('[data-testid="storyTitle"]');
+
+  // 해당 요소가 속한 article 선택
+  const articleElement = startElement.closest("article");
+
+  if (articleElement) {
+    // article 내부의 모든 요소에서 클래스 네임 제거
+    articleElement.querySelectorAll("*").forEach((element) => {
+      element.removeAttribute("class");
+    });
+
+    // 클래스 네임을 제거한 HTML 반환
+    return articleElement.outerHTML;
+  }
+
+  return null;
 }
 
 export default NetflixBlogCrawler;
