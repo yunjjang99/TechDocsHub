@@ -1,5 +1,5 @@
-/jenkins_techdocs_hub_home
-
+# 환경 변수 파일
 .env
-/.env
+*.env
 
+/jenkins_techdocs_hub_home
