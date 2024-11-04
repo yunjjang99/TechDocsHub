@@ -3,6 +3,7 @@ import { DataSourceOptions } from "typeorm";
 import { User } from "./src/user/entities/user.entity";
 import * as dotenv from "dotenv";
 import { join } from "path";
+import { Crawler } from "@/crawlers/entities/crawlers.entity";
 
 dotenv.config();
 
@@ -13,7 +14,7 @@ const commonTypeOrmConfig: TypeOrmModuleOptions & DataSourceOptions = {
   username: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  entities: [User],
+  entities: [User, Crawler],
   migrations: [join(__dirname, "src/migrations/*.ts")],
   charset: "utf8mb4",
 };

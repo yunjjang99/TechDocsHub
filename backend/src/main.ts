@@ -7,7 +7,7 @@ import * as express from "express";
 import { INestApplication } from "@nestjs/common";
 import { AppLogger } from "./app.logger";
 import { ResponseInterceptor } from "./common/interceptor/response.interceprot";
-import NetflixBlogCrawler from "./crawlers/netflix-blog-crawler";
+import NetflixBlogCrawler from "./crawlers/domain/netflix/netflix-blog-crawler";
 
 async function bootstrap() {
   dotenv.config();

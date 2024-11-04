@@ -12,68 +12,11 @@ interface CrawlerConfig {
 
 class NetflixBlogCrawler {
   private readonly config: CrawlerConfig = {
-    baseUrl: "https://netflixtechblog.com",
-    outputPostsDir: path.join(__dirname, "../../../mnt/netflix/posts"), // ../../../ 경로로 변경
+    baseUrl: "https://netflixtechblog.com", //주기적으로 검사할 블로그 페이지
+    outputPostsDir: path.join(__dirname, "../../../../../mnt/netflix/posts"), // 크롤링된 리소스들이 저장될 폴더
   };
-  private readonly turndown: TurndownService;
-  private readonly axiosInstance;
 
-  constructor() {
-    this.turndown = this.initializeTurndown();
-    this.axiosInstance = this.initializeAxios();
-  }
-
-  private initializeTurndown(): TurndownService {
-    const turndown = new TurndownService({
-      headingStyle: "atx",
-      codeBlockStyle: "fenced",
-    });
-
-    turndown.addRule("images", {
-      filter: ["img"],
-      replacement: async (content, node) => {
-        const img = node as HTMLImageElement;
-        const localPath = await this.downloadAndSaveImage(
-          img.src,
-          this.config.outputPostsDir
-        );
-        return `![${img.alt || ""}](${localPath})`;
-      },
-    });
-
-    return turndown;
-  }
-
-  private initializeAxios() {
-    return axios.create({
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-      },
-    });
-  }
-
-  private async downloadAndSaveImage(
-    imageUrl: string,
-    postDir: string
-  ): Promise<string> {
-    try {
-      const response = await axios.get(imageUrl, {
-        responseType: "arraybuffer",
-      });
-      const imageName = path.basename(imageUrl);
-      const imagesDir = path.join(postDir, "images");
-      const localPath = path.join(imagesDir, imageName);
-
-      await fs.ensureDir(imagesDir);
-      await fs.writeFile(localPath, response.data);
-
-      return `./images/${imageName}`;
-    } catch (error) {
-      console.error(`이미지 다운로드 실패: ${imageUrl}`, error);
-      return imageUrl;
-    }
-  }
+  constructor() {}
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -89,7 +32,7 @@ class NetflixBlogCrawler {
       const links = await this.loadParsedLinkList();
       console.log(links);
       for (const link of links) {
-        await this.savePageHtml(link);
+        await this.saveNetflixBlogHtml(link);
         await this.sleep(2000);
       }
     } catch (error) {
@@ -145,7 +88,7 @@ class NetflixBlogCrawler {
     }
   }
 
-  private async savePageHtml(url: string): Promise<void> {
+  private async saveNetflixBlogHtml(url: string): Promise<void> {
     const browser = await this.initializeBrowser();
 
     try {
@@ -189,11 +132,45 @@ class NetflixBlogCrawler {
 
   private async loadParsedLinkList(): Promise<string[]> {
     try {
-      const htmlContent = await fs.readFile(
-        path.join(__dirname, "../../../mnt/netflex/origin/2024-11-03.html"), // ../../../ 경로 설정
-        "utf-8"
+      const originDir = path.join(
+        __dirname,
+        "../../../../../mnt/netflix/origin"
       );
 
+      // 폴더 내의 파일 목록을 가져오기
+      const files = await fs.readdir(originDir);
+
+      // 날짜 형식 (yyyy-mm-dd.html)으로 필터링
+      const datePattern = /^\d{4}-\d{2}-\d{2}\.html$/;
+      const filteredFiles = files.filter((file) => datePattern.test(file));
+
+      if (filteredFiles.length === 0) {
+        console.error("HTML 파일이 없습니다.");
+        return [];
+      }
+
+      // 오늘 날짜
+      const today = new Date();
+      const todayString = today.toISOString().split("T")[0]; // yyyy-mm-dd 형식
+
+      // 가장 가까운 파일 찾기
+      const closestFile = filteredFiles.reduce((closest, current) => {
+        const currentDate = new Date(current.split(".")[0]); // 파일명에서 날짜 추출
+        const closestDate = new Date(closest.split(".")[0]);
+
+        // 현재 파일이 가장 가까운지 비교
+        return Math.abs(currentDate.getTime() - today.getTime()) <
+          Math.abs(closestDate.getTime() - today.getTime())
+          ? current
+          : closest;
+      });
+
+      // 해당 파일 읽기
+      const filePath = path.join(originDir, closestFile);
+      console.log(filePath);
+      const htmlContent = await fs.readFile(filePath, "utf-8");
+
+      console.log(htmlContent);
       return this.extractLinks(htmlContent)
         .filter((link) => link.startsWith(this.config.baseUrl))
         .filter(
