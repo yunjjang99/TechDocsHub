@@ -25,10 +25,10 @@ async function bootstrap() {
   console.log(`서버가 포트 ${process.env.BACKEND_PORT}에서 실행 중입니다.`);
 
   // 1초 후에 크롤러 실행
-  setTimeout(async () => {
-    const crawler = new NetflixBlogCrawler();
-    await crawler.netflixCrawl();
-  }, 1000);
+  // setTimeout(async () => {
+  //   const crawler = new NetflixBlogCrawler();
+  //   await crawler.netflixCrawl();
+  // }, 1000);
 }
 
 bootstrap();
