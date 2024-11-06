@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import * as jwt from "jsonwebtoken";
 import { UserService } from "src/user/user.service";
-import { UserRole } from "@/types/enumList"; // user_group enum import
+import { UserRole } from "@/types/enums"; // user_group enum import
 import { failure, success } from "@/utils/functionalUtil"; // success, failure import
 
 const dotenv = require("dotenv");

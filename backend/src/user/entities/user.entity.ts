@@ -7,7 +7,7 @@ import {
   BeforeInsert,
 } from "typeorm";
 import * as bcrypt from "bcryptjs";
-import { UserRole } from "@/types/enumList";
+import { UserRole } from "@/types/enums";
 
 @Entity("users") // 테이블 이름을 'users'로 정의
 export class User {

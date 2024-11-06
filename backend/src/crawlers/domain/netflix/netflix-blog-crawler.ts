@@ -4,19 +4,26 @@ import TurndownService = require("turndown");
 import * as fs from "fs-extra";
 import * as path from "path";
 import puppeteer from "puppeteer";
+import { forwardRef, Inject, Injectable } from "@nestjs/common";
+import { CrawlersService } from "@/crawlers/crawlers.service";
+import { BlogPost } from "@/types/interfaces"; // BlogPost 타입을 임포트
 
 interface CrawlerConfig {
   baseUrl: string;
   outputPostsDir: string;
 }
 
+@Injectable()
 class NetflixBlogCrawler {
-  private readonly config: CrawlerConfig = {
-    baseUrl: "https://netflixtechblog.com", //주기적으로 검사할 블로그 페이지
-    outputPostsDir: path.join(__dirname, "../../../../../mnt/netflix/posts"), // 크롤링된 리소스들이 저장될 폴더
-  };
+  constructor(
+    @Inject(forwardRef(() => CrawlersService))
+    private readonly crawlersService: CrawlersService
+  ) {}
 
-  constructor() {}
+  private readonly config: CrawlerConfig = {
+    baseUrl: "https://netflixtechblog.com",
+    outputPostsDir: path.join(__dirname, "../../../../../mnt/netflix/posts"),
+  };
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -26,13 +33,50 @@ class NetflixBlogCrawler {
     const browser = await this.initializeBrowser();
 
     try {
-      const page = await browser.newPage();
-      await this.navigateToMainPage(page);
-
+      const scrapedUrls = await this.crawlersService.getScrapedUrls("Netflix");
       const links = await this.loadParsedLinkList();
       console.log(links);
       for (const link of links) {
-        await this.saveNetflixBlogHtml(link);
+        if (scrapedUrls.includes(link)) {
+          console.log(`⏩ 이미 스크래핑한 링크 건너뛰기: ${link}`);
+          continue;
+        }
+
+        // HTML 파일 저장
+        const savedHtmlPath = await this.saveNetflixBlogHtml(link);
+
+        // 저장된 HTML 경로가 유효하지 않은 경우 패스
+        if (!savedHtmlPath) {
+          console.log(
+            `⚠️ 유효하지 않은 링크로 인해 크롤링을 건너뜁니다: ${link}`
+          );
+          continue;
+        }
+
+        // BlogPost 형식으로 데이터 구성
+        const blogPost: BlogPost = {
+          companyName: "Netflix",
+          baseBlogUrl: this.config.baseUrl,
+          blogPostUrl: link,
+          title: this.extractTitleFromUrl(link), // 제목 추출
+          postPublishedAt: new Date(), // 실제 발행 날짜로 수정 필요
+          crawledAt: new Date(), // 현재 크롤링 시간
+          absolutePath: savedHtmlPath, // HTML 파일의 절대 경로
+          relativePath: path.relative(
+            this.config.outputPostsDir,
+            savedHtmlPath
+          ), // 상대 경로
+          status: "active",
+          description: "Netflix 기술 블로그 포스트",
+          tags: ["technology", "blog"],
+          retryCount: 0,
+          language: "en",
+        };
+
+        // CrawlersService의 saveCrawlerData 메서드를 통해 저장
+        await this.crawlersService.saveCrawlerData(blogPost);
+        console.log(`✅ ${blogPost.title} 데이터가 성공적으로 저장되었습니다.`);
+
         await this.sleep(2000);
       }
     } catch (error) {
@@ -45,7 +89,7 @@ class NetflixBlogCrawler {
 
   private async initializeBrowser() {
     return puppeteer.launch({
-      headless: process.env.IS_DEV !== "true",
+      headless: true,
       executablePath: process.env.CHROME_PATH || "/usr/bin/chromium",
       args: [
         "--no-sandbox",
@@ -55,14 +99,6 @@ class NetflixBlogCrawler {
         "--window-size=1920,1080",
       ],
       defaultViewport: { width: 1920, height: 1080 },
-    });
-  }
-
-  private async navigateToMainPage(page: any): Promise<void> {
-    console.log("넷플릭스 기술 블로그 페이지로 이동 중...");
-    await page.goto(this.config.baseUrl, {
-      waitUntil: "networkidle0",
-      timeout: 60000,
     });
   }
 
@@ -88,12 +124,12 @@ class NetflixBlogCrawler {
     }
   }
 
-  private async saveNetflixBlogHtml(url: string): Promise<void> {
+  private async saveNetflixBlogHtml(url: string): Promise<string | null> {
     const browser = await this.initializeBrowser();
 
     try {
       const page = await browser.newPage();
-      await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
+      await page.goto(url, { waitUntil: "networkidle0", timeout: 40000 });
 
       const cleanedHtml = await page.evaluate(() => {
         const startElement = document.querySelector(
@@ -112,19 +148,69 @@ class NetflixBlogCrawler {
 
       if (!cleanedHtml) {
         console.log(`⚠️ 컨텐츠를 찾을 수 없음: ${url}`);
-        return;
+        return null;
       }
 
+      // 이미지 저장 경로 설정
       const postName = url.split("/").pop() || "index";
       const postDir = path.join(this.config.outputPostsDir, postName);
+      const imagesDir = path.join(postDir, "images");
+      await fs.ensureDir(imagesDir);
+
+      // 이미지 다운로드
+      const images = await page.evaluate(() => {
+        const pictureTags = Array.from(document.querySelectorAll("picture"));
+        const imageUrls: string[] = [];
+
+        pictureTags.forEach((picture) => {
+          const sources = Array.from(picture.querySelectorAll("source"));
+          sources.forEach((source) => {
+            const srcSet = source.getAttribute("srcset");
+            if (srcSet) {
+              const urls = srcSet
+                .split(",")
+                .map((url) => url.trim().split(" ")[0]);
+              urls.forEach((url) => imageUrls.push(url));
+            }
+          });
+        });
+
+        return imageUrls;
+      });
+
+      for (const src of images) {
+        try {
+          const response = await axios.get(src, {
+            responseType: "arraybuffer",
+          });
+
+          // URL에서 확장자 추출
+          let imageExtension = path.extname(src);
+          if (!imageExtension) {
+            imageExtension = ".jpg"; // 기본 확장자 설정
+          }
+
+          // URL을 파일 이름으로 사용하면서 파일 시스템에 맞게 특수 문자를 대체
+          const sanitizedImageName =
+            src.replace(/[:/\\*?"<>|]/g, "_").replace(/\.\w+$/, "") + // 기존 확장자를 제거
+            imageExtension; // 확장자를 추가
+          const imagePath = path.join(imagesDir, sanitizedImageName);
+
+          await fs.writeFile(imagePath, response.data);
+          console.log(`✅ 이미지 저장 완료: ${imagePath}`);
+        } catch (error) {
+          console.error(`❌ 이미지 다운로드 실패: ${src}`, error);
+        }
+      }
+
+      // HTML 파일 저장
       const filePath = path.join(postDir, "index.html");
-
-      await fs.ensureDir(postDir);
       await fs.writeFile(filePath, cleanedHtml, "utf-8");
-
       console.log(`✅ HTML 저장 완료: ${filePath}`);
+      return filePath;
     } catch (error) {
       console.error(`❌ HTML 저장 실패 (${url}):`, error);
+      return null;
     } finally {
       await browser.close();
     }
@@ -137,10 +223,7 @@ class NetflixBlogCrawler {
         "../../../../../mnt/netflix/origin"
       );
 
-      // 폴더 내의 파일 목록을 가져오기
       const files = await fs.readdir(originDir);
-
-      // 날짜 형식 (yyyy-mm-dd.html)으로 필터링
       const datePattern = /^\d{4}-\d{2}-\d{2}\.html$/;
       const filteredFiles = files.filter((file) => datePattern.test(file));
 
@@ -149,28 +232,20 @@ class NetflixBlogCrawler {
         return [];
       }
 
-      // 오늘 날짜
       const today = new Date();
-      const todayString = today.toISOString().split("T")[0]; // yyyy-mm-dd 형식
-
-      // 가장 가까운 파일 찾기
       const closestFile = filteredFiles.reduce((closest, current) => {
-        const currentDate = new Date(current.split(".")[0]); // 파일명에서 날짜 추출
+        const currentDate = new Date(current.split(".")[0]);
         const closestDate = new Date(closest.split(".")[0]);
 
-        // 현재 파일이 가장 가까운지 비교
         return Math.abs(currentDate.getTime() - today.getTime()) <
           Math.abs(closestDate.getTime() - today.getTime())
           ? current
           : closest;
       });
 
-      // 해당 파일 읽기
       const filePath = path.join(originDir, closestFile);
-      console.log(filePath);
       const htmlContent = await fs.readFile(filePath, "utf-8");
 
-      console.log(htmlContent);
       return this.extractLinks(htmlContent)
         .filter((link) => link.startsWith(this.config.baseUrl))
         .filter(
@@ -186,27 +261,16 @@ class NetflixBlogCrawler {
       return [];
     }
   }
-}
 
-// data-testid가 storyTitle인 요소부��� article 끝까지 추출하고, 클래스 네임을 제거하는 함수
-function extractAndRemoveClassNames() {
-  // data-testid="storyTitle"로 시작하는 요소 선택
-  const startElement = document.querySelector('[data-testid="storyTitle"]');
+  private extractTitleFromUrl(url: string): string {
+    const parts = url.split("/");
+    let title = parts[parts.length - 1].replace(/-/g, " "); // '-'를 공백으로 변환
 
-  // 해당 요소가 속한 article 선택
-  const articleElement = startElement.closest("article");
+    // 마지막 단어가 식별자(UUID)인 경우 제거
+    title = title.replace(/\b[a-f0-9]{8,}\b$/, "").trim();
 
-  if (articleElement) {
-    // article 내부의 모든 요소에서 클래스 네임 제거
-    articleElement.querySelectorAll("*").forEach((element) => {
-      element.removeAttribute("class");
-    });
-
-    // 클래스 네임을 제거한 HTML 반환
-    return articleElement.outerHTML;
+    return title;
   }
-
-  return null;
 }
 
 export default NetflixBlogCrawler;

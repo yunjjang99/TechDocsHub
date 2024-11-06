@@ -10,9 +10,12 @@ import { IpGeolocationMiddleware } from "./common/middleware/ip-geolocation.midd
 import { AppLogger } from "./app.logger";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { LoggingInterceptor } from "./common/interceptor/logging.interceptor";
+import { ScheduleModule } from "@nestjs/schedule";
+import { CrawlersModule } from "./crawlers/crawlers.module";
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -21,6 +24,7 @@ import { LoggingInterceptor } from "./common/interceptor/logging.interceptor";
       synchronize: process.env.IS_DEV ? true : true,
     }),
     AuthModule,
+    CrawlersModule,
     UserModule,
   ],
   providers: [
