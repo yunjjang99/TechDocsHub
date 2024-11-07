@@ -42,7 +42,7 @@ export default function EditorPage() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* 에디터 영역 */}
-        <div className="flex flex-col w-1/2 p-4 bg-gray-900 text-white overflow-auto">
+        <div className="flex flex-col w-full p-4 bg-gray-900 text-white overflow-auto">
           <input
             type="text"
             placeholder="Title"
@@ -70,14 +70,6 @@ export default function EditorPage() {
           >
             포스팅하기
           </button>
-        </div>
-
-        {/* 미리보기 영역 */}
-        <div className="w-1/2 p-4 bg-gray-800 text-white overflow-auto">
-          <h2 className="text-xl font-bold mb-4">미리보기</h2>
-          <div className="bg-gray-900 p-4 rounded-lg h-full overflow-auto">
-            <ReactMarkdown>{content}</ReactMarkdown>
-          </div>
         </div>
       </div>
     </div>
