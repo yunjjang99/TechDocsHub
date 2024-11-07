@@ -1,0 +1,40 @@
+{
+  "name": "my-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "check-node-version": "node -e \"const version = process.versions.node.split('.'); const [major, minor, patch] = version.map(v => parseInt(v, 10)); if (major !== 20 || minor !== 16 || patch !== 0) { console.error(`Required Node.js version is 20.12.1, but found ${process.versions.node}`); process.exit(1); }\"",
+    "prestart": "npm run check-node-version",
+    "prestart:dev": "npm run check-node-version",
+    "prestart:debug": "npm run check-node-version",
+    "prestart:prod": "npm run check-node-version",
+    "pretest": "npm run check-node-version",
+    "pretest:watch": "npm run check-node-version",
+    "pretest:debug": "npm run check-node-version",
+    "pretest:e2e": "npm run check-node-version",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "jose": "^5.8.0",
+    "next": "14.2.9",
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.9",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": "20.x",
+    "npm": ">=7.0.0"
+  }
+}
