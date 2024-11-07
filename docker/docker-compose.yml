@@ -53,6 +53,28 @@ services:
     networks:
       - mynetwork
 
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/dockerfiles/dockerfile.frontend
+    container_name: ${DOMAIN_NAME}_frontend
+    ports:
+      - "3201:3000"
+    depends_on:
+      - backend
+    networks:
+      - mynetwork
+
+
+
+
+
+
+
+
+
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
     container_name: ${DOMAIN_NAME}_elasticsearch
