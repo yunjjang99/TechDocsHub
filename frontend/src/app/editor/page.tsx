@@ -61,7 +61,8 @@ export default function EditorPage() {
             <MDEditor
               value={content}
               onChange={(value) => setContent(value || "")}
-              className="h-full bg-gray-800 rounded-lg"
+              className="bg-gray-800 rounded-lg"
+              style={{ height: "70vh" }} // 원하는 높이로 강제 설정
             />
           </div>
           <button
