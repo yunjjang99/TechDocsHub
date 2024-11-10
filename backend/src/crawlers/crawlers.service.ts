@@ -17,17 +17,17 @@ import NetflixBlogCrawler from "./domain/netflix/netflix-blog-crawler";
 import { Cron } from "@nestjs/schedule";
 
 @Injectable()
-export class CrawlersService implements OnModuleInit {
+export class CrawlersService {
   constructor(
     @InjectRepository(Crawler)
     private readonly crawlerRepository: Repository<Crawler>,
     private readonly netflixBlogCrawler: NetflixBlogCrawler
   ) {}
 
-  async onModuleInit() {
-    console.log("🚀 Application started - Executing initial crawl...");
-    await this.netflixBlogCrawler.netflixCrawl();
-  }
+  // async onModuleInit() {
+  //   console.log("🚀 Application started - Executing initial crawl...");
+  //   await this.netflixBlogCrawler.netflixCrawl();
+  // }
 
   @Cron("0 1 * * *") //1AM 스크래핑
   handleCron() {

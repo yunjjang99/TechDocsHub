@@ -15,6 +15,7 @@ const commonTypeOrmConfig: TypeOrmModuleOptions & DataSourceOptions = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   entities: [User, Crawler],
+
   migrations: [join(__dirname, "src/migrations/*.ts")],
   charset: "utf8mb4",
 };

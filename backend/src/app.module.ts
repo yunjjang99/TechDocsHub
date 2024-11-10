@@ -12,6 +12,7 @@ import { APP_INTERCEPTOR } from "@nestjs/core";
 import { LoggingInterceptor } from "./common/interceptor/logging.interceptor";
 import { ScheduleModule } from "@nestjs/schedule";
 import { CrawlersModule } from "./crawlers/crawlers.module";
+import { PostsModule } from "./posts/posts.module";
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { CrawlersModule } from "./crawlers/crawlers.module";
     AuthModule,
     CrawlersModule,
     UserModule,
+    PostsModule,
   ],
   providers: [
     AppLogger,
@@ -38,10 +40,10 @@ import { CrawlersModule } from "./crawlers/crawlers.module";
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      // .apply(LoggerMiddleware) // 로깅 미들웨어 적용  ELK 미들웨어입니다
-      // .forRoutes("*")           // 모든 라우트에 대해 적용
-      .apply(IpGeolocationMiddleware) // 한국에서만 접근 허용 미들웨어 적용
-      .forRoutes("*"); // 모든 라우트에 대해 적용
+    consumer;
+    // .apply(LoggerMiddleware) // 로깅 미들웨어 적용  ELK 미들웨어입니다
+    // .forRoutes("*")           // 모든 라우트에 대해 적용
+    // .apply(IpGeolocationMiddleware) // 한국에서만 접근 허용 미들웨어 적용
+    // .forRoutes("*"); // 모든 라우트에 대해 적용
   }
 }
