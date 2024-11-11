@@ -22,14 +22,20 @@ export class PostsService {
       // 비밀번호 입력
       await page.type("input[name='password']", kakaoPw);
 
-      // 로그인 버튼 클릭
-      //   await page.click(".btn_g.btn_confirm");
+      //로그인 버튼 클릭
+      await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll("button"));
+        const loginButton = buttons.find((button) =>
+          button.textContent.includes("로그인")
+        );
+        if (loginButton) loginButton.click();
+      });
 
       // 로그인 완료 대기
       await page.waitForNavigation();
 
       // 블로그 글쓰기 페이지로 이동
-      await page.goto("https://your-blog.tistory.com/manage/newpost");
+      await page.goto("https://yunsoo1.tistory.com/manage/newpost");
 
       // 마크다운 글 입력
       await page.type(".editor", markdown);
