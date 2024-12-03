@@ -1,7 +1,6 @@
-import { Props } from "next/script";
 import ReactMarkdown from "react-markdown";
 
-const PostPage: React.FC<Props> = ({ markdown }) => {
+const PostPage = ({ markdown }: any) => {
   return (
     <div>
       <article>
@@ -10,3 +9,5 @@ const PostPage: React.FC<Props> = ({ markdown }) => {
     </div>
   );
 };
+
+export default PostPage;

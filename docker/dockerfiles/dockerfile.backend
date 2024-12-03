@@ -1,7 +1,75 @@
+# # Stage 1: Build the application
+# FROM node:20.16.0 AS builder
+
+# # 필수 패키지 설치 (apt 사용)
+# RUN apt-get update && \
+#     apt-get install -y \
+#     chromium \
+#     fonts-freefont-ttf \
+#     libnss3 \
+#     libfreetype6 \
+#     libharfbuzz-bin \
+#     fonts-noto-color-emoji \
+#     libstdc++6 \
+#     && rm -rf /var/lib/apt/lists/*
+
+# # Puppeteer가 기본적으로 Chromium을 다운로드하지 않도록 설정합니다.
+# ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+# # Chromium 바이너리를 Puppeteer의 경로와 일치시키도록 심볼릭 링크 생성 (기존에 파일이 없을 때만 생성)
+# RUN if [ ! -f /usr/bin/chromium ]; then \
+#     ln -s /usr/bin/chromium /usr/bin/chromium; \
+#     fi
+
+# # 작업 디렉토리 설정
+# WORKDIR /app
+
+# # package.json 및 package-lock.json 복사
+# COPY ./package*.json ./
+
+# # 의존성 설치
+# RUN npm install
+
+# # 소스 코드 복사
+# COPY . .
+
+# # Chromium이 설치되었는지 확인
+# RUN if [ ! -f /usr/bin/chromium ]; then \
+#     echo "Error: Chromium이 /usr/bin/chromium 경로에 설치되지 않았습니다."; \
+#     exit 1; \
+#     fi
+
+# # NestJS 빌드
+# RUN npm run build
+
+# # Stage 2: Production
+# FROM node:20.16.0 AS production
+
+# # pm2 설치
+# RUN npm install -g pm2
+
+# # 작업 디렉토리 설정
+# WORKDIR /app
+
+# # 빌드된 파일 복사
+# COPY --from=builder /app/dist ./dist
+# COPY --from=builder /app/package*.json ./
+
+# # 프로덕션 의존성 설치 (devDependencies 제외)
+# RUN npm install --omit=dev
+
+# RUN apt-get update && apt-get install -y chromium && chromium --version
+
+
+# # 포트 설정
+# EXPOSE 5121
+
+# # 앱 실행 (프로덕션 모드)
+# CMD ["pm2-runtime", "dist/src/main.js"]
 # Stage 1: Build the application
 FROM node:20.16.0 AS builder
 
-# 필수 패키지 설치 (apt 사용)
+# 필수 패키지 설치
 RUN apt-get update && \
     apt-get install -y \
     chromium \
@@ -11,39 +79,34 @@ RUN apt-get update && \
     libharfbuzz-bin \
     fonts-noto-color-emoji \
     libstdc++6 \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Puppeteer가 기본적으로 Chromium을 다운로드하지 않도록 설정합니다.
+# Puppeteer 환경 설정
 ENV PUPPETEER_SKIP_DOWNLOAD=true
-
-# Chromium 바이너리를 Puppeteer의 경로와 일치시키도록 심볼릭 링크 생성 (기존에 파일이 없을 때만 생성)
-RUN if [ ! -f /usr/bin/chromium ]; then \
-    ln -s /usr/bin/chromium /usr/bin/chromium; \
-    fi
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # 작업 디렉토리 설정
 WORKDIR /app
 
-# package.json 및 package-lock.json 복사
+# package.json 복사 및 의존성 설치
 COPY ./package*.json ./
-
-# 의존성 설치
 RUN npm install
 
 # 소스 코드 복사
 COPY . .
-
-# Chromium이 설치되었는지 확인
-RUN if [ ! -f /usr/bin/chromium ]; then \
-    echo "Error: Chromium이 /usr/bin/chromium 경로에 설치되지 않았습니다."; \
-    exit 1; \
-    fi
 
 # NestJS 빌드
 RUN npm run build
 
 # Stage 2: Production
 FROM node:20.16.0 AS production
+
+# 필수 패키지 설치
+RUN apt-get update && \
+    apt-get install -y chromium && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # pm2 설치
 RUN npm install -g pm2
@@ -55,14 +118,14 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
 
-# 프로덕션 의존성 설치 (devDependencies 제외)
+# 프로덕션 의존성 설치
 RUN npm install --omit=dev
 
-RUN apt-get update && apt-get install -y chromium && chromium --version
-
+# Puppeteer 환경 변수 설정
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # 포트 설정
 EXPOSE 5121
 
-# 앱 실행 (프로덕션 모드)
+# 애플리케이션 실행
 CMD ["pm2-runtime", "dist/src/main.js"]

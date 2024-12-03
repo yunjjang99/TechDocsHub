@@ -1,4 +1,5 @@
 import { createLogger, format, transports } from "winston";
+
 const DailyRotateFile = require("winston-daily-rotate-file");
 const { LogstashTransport } = require("winston-logstash-transport");
 
@@ -15,12 +16,20 @@ const isDev = process.env.IS_DEV;
 const logstashHost = isDev ? "127.0.0.1" : process.env.LOGSTASH_HOST;
 const logstashPort = isDev ? process.env.LOGSTASH_PORT : 5044;
 
+interface LogInfo {
+  message: string;
+  level: string;
+  [key: string]: any; // 추가적인 필드가 있을 수 있음
+}
+
 // 'isSuccess'가 포함된 메시지를 필터링하는 custom format
+
 const filterIsSuccessLogs = format((info) => {
-  if (info.message.includes("method") && info.message.includes("url")) {
-    return false; // 필터링하여 이 로그는 출력하지 않음
+  const message = typeof info.message === "string" ? info.message : "";
+  if (message.includes("method") && message.includes("url")) {
+    return false; // 필터링된 경우 로그를 출력하지 않음
   }
-  return info; // 필터링되지 않은 경우, 계속해서 처리
+  return info; // 필터링되지 않은 경우 처리
 });
 
 // Winston 로그 설정
