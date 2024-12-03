@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { PostsService } from "./posts.service";
+import { Multer } from "multer";
 
 @Controller("api/posts")
 export class PostsController {
