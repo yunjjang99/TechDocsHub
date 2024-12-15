@@ -50,8 +50,43 @@ export class PostsService {
       // 블로그 글쓰기 페이지로 이동
       await page.goto("https://yunsoo1.tistory.com/manage/newpost");
 
+      const titleTextareaSelector = "textarea[placeholder='제목을 입력하세요']";
+
+      // 해당 textarea가 렌더링될 때까지 기다림
+      await page.waitForSelector(titleTextareaSelector, {
+        visible: true,
+        timeout: 10000,
+      });
+
+      // textarea 클릭
+      await page.click(titleTextareaSelector);
+      console.log("textarea를 클릭했습니다.");
+
+      // 텍스트 입력
+      const testText = "테스트입니다";
+      await page.type(titleTextareaSelector, testText);
+
       // 추가적인 다이얼로그 처리
       await new Promise((resolve) => setTimeout(resolve, 2000)); // 페이지 로딩 후 다이얼로그가 뜰 수 있는 시간 대기
+
+      // const completeButtonSelector = "button"; // 버튼 요소 선택
+      // await page.waitForSelector(completeButtonSelector, {
+      //   visible: true,
+      //   timeout: 10000,
+      // });
+
+      // // 버튼 클릭 (텍스트로 필터링)
+      // await page.evaluate(() => {
+      //   const completeButton = Array.from(
+      //     document.querySelectorAll("button")
+      //   ).find((button) => button.textContent?.includes("완료"));
+      //   if (completeButton) {
+      //     completeButton.click();
+      //     console.log("'완료' 버튼을 클릭했습니다.");
+      //   } else {
+      //     console.error("'완료' 버튼을 찾을 수 없습니다.");
+      //   }
+      // });
 
       console.log("모든 다이얼로그가 자동으로 거절 처리되었습니다.");
     } catch (error) {
