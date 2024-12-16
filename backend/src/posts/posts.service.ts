@@ -9,21 +9,42 @@ export class PostsService {
 
     try {
       // Puppeteer 브라우저 및 페이지 초기화
-      browser = await puppeteer.launch({ headless: false });
+      browser = await puppeteer.launch({
+        headless: false,
+        args: ["--window-size=1920,1080"], // 브라우저 창 크기 설정
+      });
+
       page = await browser.newPage();
+      await page.setViewport({ width: 1920, height: 1080 });
+
+      // 모든 다이얼로그 자동 거절 (alert, confirm, prompt)
+      // page.on("dialog", async (dialog) => {
+      //   console.log(`다이얼로그 감지: ${dialog.type()} - ${dialog.message()}`);
+      //   if (dialog.message() === "이어서 작성하시겠습니까?")
+      //     await dialog.dismiss(); // 거절
+      // });
 
       // 모든 다이얼로그 자동 거절 (alert, confirm, prompt)
       page.on("dialog", async (dialog) => {
         console.log(`다이얼로그 감지: ${dialog.type()} - ${dialog.message()}`);
-        await dialog.dismiss(); // 거절
+
+        // "이어서 작성하시겠습니까?" 메시지가 감지되면 거절
+        if (dialog.message().includes("이어서 작성하시겠습니까?")) {
+          console.log(
+            "이어서 작성 다이얼로그를 감지했습니다. 자동으로 거절합니다."
+          );
+          await dialog.dismiss();
+        } else {
+          await dialog.dismiss(); // 다른 모든 다이얼로그도 거절
+        }
       });
 
       // 네트워크 요청 에러 핸들링 (차단된 요청 등)
-      page.on("requestfailed", (request) => {
-        console.log(
-          `요청 실패: ${request.url()} - ${request.failure()?.errorText}`
-        );
-      });
+      // page.on("requestfailed", (request) => {
+      //   console.log(
+      //     `요청 실패: ${request.url()} - ${request.failure()?.errorText}`
+      //   );
+      // });
 
       // 티스토리 로그인 페이지로 이동
       await page.goto(
@@ -66,8 +87,8 @@ export class PostsService {
       const testText = "테스트입니다";
       await page.type(titleTextareaSelector, testText);
 
-      // 추가적인 다이얼로그 처리
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // 페이지 로딩 후 다이얼로그가 뜰 수 있는 시간 대기
+      await page.keyboard.press("Tab");
+      console.log("TAB 키를 눌러 본문 입력란으로 이동했습니다.");
 
       // const completeButtonSelector = "button"; // 버튼 요소 선택
       // await page.waitForSelector(completeButtonSelector, {
