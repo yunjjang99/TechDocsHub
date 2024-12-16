@@ -3,10 +3,10 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
+  HttpException,
 } from "@nestjs/common";
 import { Observable, throwError } from "rxjs";
 import { map, catchError } from "rxjs/operators";
-import { HttpException } from "@nestjs/common";
 import { Request, Response } from "express";
 import { Result } from "@/utils/functionalUtil";
 
@@ -19,6 +19,18 @@ export class ResponseInterceptor<T> implements NestInterceptor {
 
     return next.handle().pipe(
       map((result: Result<T, any>) => {
+        // result 객체의 유효성 검사 추가
+        if (
+          !result ||
+          typeof result !== "object" ||
+          result.isSuccess === undefined
+        ) {
+          result = {
+            isSuccess: true,
+            value: result as unknown as T,
+          };
+        }
+
         // 결과가 isSuccess: false 인 경우 에러로 처리
         if (result.isSuccess === false) {
           throw new HttpException(result.error, result.statusCode || 500);
@@ -26,7 +38,7 @@ export class ResponseInterceptor<T> implements NestInterceptor {
 
         // 성공적인 응답을 처리하여 필요한 형식으로 변환
         const successResponse = {
-          isSuccess: result.isSuccess ? result.isSuccess : true,
+          isSuccess: true,
           statusCode: statusCode,
           message: "Request successfully handled",
           timestamp: new Date().toISOString(),
@@ -50,7 +62,8 @@ export class ResponseInterceptor<T> implements NestInterceptor {
           method: request.method,
         };
 
-        response.status(status).json(errorResponse); // 실패 응답 반환
+        // 실패 응답 반환
+        response.status(status).json(errorResponse);
         return throwError(() => error); // 예외 다시 던지기
       })
     );
