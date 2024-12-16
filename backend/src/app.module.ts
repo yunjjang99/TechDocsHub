@@ -13,6 +13,7 @@ import { LoggingInterceptor } from "./common/interceptor/logging.interceptor";
 import { ScheduleModule } from "@nestjs/schedule";
 import { CrawlersModule } from "./crawlers/crawlers.module";
 import { PostsModule } from "./posts/posts.module";
+import redisClient from "./common/redis/redis.client";
 
 @Module({
   imports: [
@@ -34,6 +35,10 @@ import { PostsModule } from "./posts/posts.module";
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
+    },
+    {
+      provide: "REDIS_CLIENT",
+      useValue: redisClient,
     },
     // 기타 프로바이더
   ],

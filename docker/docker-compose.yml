@@ -15,7 +15,7 @@ services:
       - IS_DEV=${IS_DEV}
       - JWT_SECRET=${JWT_SECRET}
       - BACKEND_PORT=${BACKEND_PORT}
-      - REDIS_HOST=redis
+      - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
       - CHROME_PATH=${CHROME_PATH}
       - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
